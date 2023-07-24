@@ -1,19 +1,29 @@
 import { createDep } from "./dep";
 import { extend } from "@mini-vue/shared";
-
-let activeEffect = void 0;
+/**当前活跃的effect，随后会被收集起来 */
+let activeEffect: ReactiveEffect | undefined = void 0;
+/**用作暂停和恢复依赖收集的标志； */
 let shouldTrack = false;
-const targetMap = new WeakMap();
+/**依赖桶，键是对象，值是一个Map。Map的键是对象的key，值是依赖Set集合。  
+ * 
+ * 因此通过目标对象target可以获取到对应的所有依赖 
+ */
+const targetMap: WeakMap<object, Map<any, Set<ReactiveEffect>>> = new WeakMap(); //必须使用weakMap，防止内存溢出
 
 // 用于依赖收集
+/**响应式对象的副作用 */
 export class ReactiveEffect {
   active = true;
   deps = [];
   public onStop?: () => void;
+  /** 构造函数
+   * @param fn 未知？？
+   * @param scheduler   scheduler 可以让用户自己选择调用的时机，这样就可以灵活的控制调用了，在 runtime-core 中，就是使用了 scheduler 实现了在 next ticker 中调用的逻辑
+   */
   constructor(public fn, public scheduler?) {
     console.log("创建 ReactiveEffect 对象");
   }
-
+  /**这个依赖要执行什么函数 */
   run() {
     console.log("run");
     // 运行 run 的时候，可以控制 要不要执行后续收集依赖的一步
@@ -85,34 +95,36 @@ export function effect(fn, options = {}) {
 export function stop(runner) {
   runner.effect.stop();
 }
-
-export function track(target, type, key) {
+/**依赖收集函数 
+ * @param target 对象
+ * @param type 类型，比如get
+ * @param key 对象的键值
+ * @returns 
+ */
+export function track(target, type: string, key) {
   if (!isTracking()) {
     return;
   }
   console.log(`触发 track -> target: ${target} type:${type} key:${key}`);
-  // 1. 先基于 target 找到对应的 dep
-  // 如果是第一次的话，那么就需要初始化
+  /**1. 先基于 target 找到对应的 depsMap*/
   let depsMap = targetMap.get(target);
-  if (!depsMap) {
-    // 初始化 depsMap 的逻辑
+  if (!depsMap) {// 如果是第一次的话，那么就需要初始化，初始化 depsMap 的逻辑 
     depsMap = new Map();
     targetMap.set(target, depsMap);
   }
-
+  /**然后根据要查询的键，得到这个键对应的依赖集合 */
   let dep = depsMap.get(key);
 
-  if (!dep) {
+  if (!dep) {//如果没找到就初始化
     dep = createDep();
-
     depsMap.set(key, dep);
   }
 
-  trackEffects(dep);
+  trackEffects(dep!);
 }
 
-export function trackEffects(dep) {
-  // 用 dep 来存放所有的 effect
+/**用 dep 来存放所有的 effect 。dep是个Set*/
+export function trackEffects(dep: Set<ReactiveEffect>) {
 
   // TODO
   // 这里是一个优化点
@@ -121,29 +133,29 @@ export function trackEffects(dep) {
   // 可能会影响 code path change 的情况
   // 需要每次都 cleanupEffect
   // shouldTrack = !dep.has(activeEffect!);
-  if (!dep.has(activeEffect)) {
-    dep.add(activeEffect);
+  if (!dep.has(activeEffect!)) { //收集活跃的依赖？
+    dep.add(activeEffect!);
     (activeEffect as any).deps.push(dep);
   }
 }
-
+/**在触发 set 的时候进行触发依赖 */
 export function trigger(target, type, key) {
-  // 1. 先收集所有的 dep 放到 deps 里面，
-  // 后面会统一处理
+  /**1. 先收集所有的 dep 放到 deps 里面， 后面会统一处理 */
   let deps: Array<any> = [];
   // dep
-
+  /**拿到这个target对应的依赖Map */
   const depsMap = targetMap.get(target);
 
   if (!depsMap) return;
 
   // 暂时只实现了 GET 类型
   // get 类型只需要取出来就可以
+  /**存储依赖的Set */
   const dep = depsMap.get(key);
 
   // 最后收集到 deps 内
   deps.push(dep);
-
+  /**依赖数组 */
   const effects: Array<any> = [];
   deps.forEach((dep) => {
     // 这里解构 dep 得到的是 dep 内部存储的 effect
@@ -151,20 +163,17 @@ export function trigger(target, type, key) {
   });
   // 这里的目的是只有一个 dep ，这个dep 里面包含所有的 effect
   // 这里的目前应该是为了 triggerEffects 这个函数的复用
+
   triggerEffects(createDep(effects));
 }
 
 export function isTracking() {
   return shouldTrack && activeEffect !== undefined;
 }
-
-export function triggerEffects(dep) {
-  // 执行收集到的所有的 effect 的 run 方法
+/**执行 收集到的所有的 effect 的 run 方法 。dep是个Set集合*/
+export function triggerEffects(dep: Set<ReactiveEffect>) {
   for (const effect of dep) {
     if (effect.scheduler) {
-      // scheduler 可以让用户自己选择调用的时机
-      // 这样就可以灵活的控制调用了
-      // 在 runtime-core 中，就是使用了 scheduler 实现了在 next ticker 中调用的逻辑
       effect.scheduler();
     } else {
       effect.run();

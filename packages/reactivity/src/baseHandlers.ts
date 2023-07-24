@@ -1,3 +1,4 @@
+// new Proxy 的 处理器
 import { track, trigger } from "./effect";
 import {
   reactive,
@@ -14,8 +15,21 @@ const set = createSetter();
 const readonlyGet = createGetter(true);
 const shallowReadonlyGet = createGetter(true, true);
 
+/**创建一个getter 
+ * @param isReadonly 是否为只读
+ * @param shallow 是否是非递归监听（即不监听内部属性）
+ * @returns getter函数
+ */
 function createGetter(isReadonly = false, shallow = false) {
+  /** 返回一个getter函数
+    * @param target 需要取值的目标对象
+    * @param key 需要获取的值的键值
+    * @param receiver 如果target对象中指定了getter，receiver则为getter调用时的this值 
+    * @returns target.key 的值
+   */
   return function get(target, key, receiver) {
+
+    //#region TODO: 暂时跳过
     const isExistInReactiveMap = () =>
       key === ReactiveFlags.RAW && receiver === reactiveMap.get(target);
 
@@ -36,7 +50,9 @@ function createGetter(isReadonly = false, shallow = false) {
     ) {
       return target;
     }
+    //#endregion
 
+    /**要返回出去的数据，即target.key，通过反射 */
     const res = Reflect.get(target, key, receiver);
 
     // 问题：为什么是 readonly 的时候不做依赖收集呢
@@ -52,7 +68,7 @@ function createGetter(isReadonly = false, shallow = false) {
       return res;
     }
 
-    if (isObject(res)) {
+    if (isObject(res)) { //递归调用，把全部对象都变成reactive
       // 把内部所有的是 object 的值都用 reactive 包裹，变成响应式对象
       // 如果说这个 res 值是一个对象的话，那么我们需要把获取到的 res 也转换成 reactive
       // res 等于 target[key]
@@ -62,9 +78,17 @@ function createGetter(isReadonly = false, shallow = false) {
     return res;
   };
 }
-
+/**创建一个setter */
 function createSetter() {
+  /** setter函数
+    * @param target 需要修改的目标对象
+    * @param key 需要修改的值的键值
+    * @param value 修改后的值
+    * @param receiver 如果遇到 setter，receiver则为setter调用时的this值。
+    * @returns 返回一个 Boolean 值表明是否成功设置属性。
+   */
   return function set(target, key, value, receiver) {
+    /**通过反射进行设置键值，拿到返回结果：返回一个 Boolean 值表明是否成功设置属性。 */
     const result = Reflect.set(target, key, value, receiver);
 
     // 在触发 set 的时候进行触发依赖

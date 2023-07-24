@@ -25,6 +25,8 @@
   },
   "dependencies": {
     "@vue/reactivity": "^3.0.5",
+    "jest": "^29.6.1",
     "pixi.js": "^6.2.0"
-  }
+  },
+  "type": "module"
 }

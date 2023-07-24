@@ -13,8 +13,8 @@ export const enum ReactiveFlags {
   IS_READONLY = "__v_isReadonly",
   RAW = "__v_raw",
 }
-
-export function reactive(target) {
+/**创建reactive响应式数据函数 */
+export function reactive(target) {//给target对象创建Proxy，reactiveMap用于判断当前对象是否已经存在，mutableHandlers是处理器，即get和set
   return createReactiveObject(target, reactiveMap, mutableHandlers);
 }
 
