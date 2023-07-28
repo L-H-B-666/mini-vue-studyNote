@@ -4,11 +4,15 @@ import { extend } from "@mini-vue/shared";
 let activeEffect: ReactiveEffect | undefined = void 0;
 /**用作暂停和恢复依赖收集的标志； */
 let shouldTrack = false;
+/**Dep的类型 */
+type Dep = Set<ReactiveEffect> // & TrackedMarkers
+/**装着Dep的Map */
+type KeyToDepMap = Map<any, Dep>
 /**依赖桶，键是对象，值是一个Map。Map的键是对象的key，值是依赖Set集合。  
  * 
  * 因此通过目标对象target可以获取到对应的所有依赖 
  */
-const targetMap: WeakMap<object, Map<any, Set<ReactiveEffect>>> = new WeakMap(); //必须使用weakMap，防止内存溢出
+const targetMap = new WeakMap<any, KeyToDepMap>(); //必须使用weakMap，防止内存溢出
 
 // 用于依赖收集
 /**响应式对象的副作用 */
@@ -140,37 +144,35 @@ export function trackEffects(dep: Set<ReactiveEffect>) {
 }
 /**在触发 set 的时候进行触发依赖 */
 export function trigger(target, type, key) {
-  /**1. 先收集所有的 dep 放到 deps 里面， 后面会统一处理 */
-  let deps: Array<any> = [];
+  /**1. 先收集所有的 dep 放到 deps 里面， 后面会统一处理 。这是一各装着Set的数组*/
+  let deps: Array<Dep> = [];
   // dep
   /**拿到这个target对应的依赖Map */
   const depsMap = targetMap.get(target);
 
   if (!depsMap) return;
 
-  // 暂时只实现了 GET 类型
-  // get 类型只需要取出来就可以
+  // 暂时只实现了 GET 类型  get 类型只需要取出来就可以，还有add等类型，需要去看真正的源码去理解
   /**存储依赖的Set */
   const dep = depsMap.get(key);
 
   // 最后收集到 deps 内
-  deps.push(dep);
+  deps.push(dep!);
   /**依赖数组 */
-  const effects: Array<any> = [];
-  deps.forEach((dep) => {
+  const effects: Array<ReactiveEffect> = [];
+  deps.forEach((dep) => {//把数组中的Set结构出来，
     // 这里解构 dep 得到的是 dep 内部存储的 effect
     effects.push(...dep);
   });
   // 这里的目的是只有一个 dep ，这个dep 里面包含所有的 effect
-  // 这里的目前应该是为了 triggerEffects 这个函数的复用
-
+  // 这里的目前应该是为了 triggerEffects 这个函数的复用 
   triggerEffects(createDep(effects));
 }
 
 export function isTracking() {
   return shouldTrack && activeEffect !== undefined;
 }
-/**执行 收集到的所有的 effect 的 run 方法 。dep是个Set集合*/
+/**执行收集到的所有的 effect 的 run 方法 。dep是个Set集合*/
 export function triggerEffects(dep: Set<ReactiveEffect>) {
   for (const effect of dep) {
     if (effect.scheduler) {

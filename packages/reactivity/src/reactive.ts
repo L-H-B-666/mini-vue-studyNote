@@ -3,25 +3,38 @@ import {
   readonlyHandlers,
   shallowReadonlyHandlers,
 } from "./baseHandlers";
-
-export const reactiveMap = new WeakMap();
-export const readonlyMap = new WeakMap();
-export const shallowReadonlyMap = new WeakMap();
-
+/**未知的枚举 */
 export const enum ReactiveFlags {
+  SKIP = '__v_skip',
   IS_REACTIVE = "__v_isReactive",
   IS_READONLY = "__v_isReadonly",
   RAW = "__v_raw",
 }
+/**未知键值 */
+export interface Target {
+  [ReactiveFlags.SKIP]?: boolean
+  [ReactiveFlags.IS_REACTIVE]?: boolean
+  [ReactiveFlags.IS_READONLY]?: boolean
+  [ReactiveFlags.RAW]?: any
+}
+/**全局变量，当前存在的reactive变量的weakMap */
+export const reactiveMap = new WeakMap<Target, any>();
+/**全局变量，只读的reactive变量的weakMap */
+export const readonlyMap = new WeakMap<Target, any>();
+/**全局变量，非递归监听的reactive变量的weakMap */
+export const shallowReadonlyMap = new WeakMap<Target, any>();
+
+
 /**创建reactive响应式数据函数 */
-export function reactive(target) {//给target对象创建Proxy，reactiveMap用于判断当前对象是否已经存在，mutableHandlers是处理器，即get和set
+export function reactive(target) {
   return createReactiveObject(target, reactiveMap, mutableHandlers);
 }
-
+/**创建只读的reactive响应式数据函数 */
 export function readonly(target) {
   return createReactiveObject(target, readonlyMap, readonlyHandlers);
 }
 
+/**创建非递归监听的reactive响应式数据函数 */
 export function shallowReadonly(target) {
   return createReactiveObject(
     target,
@@ -59,7 +72,12 @@ export function toRaw(value) {
 
   return value[ReactiveFlags.RAW];
 }
-
+/**给target对象创建Proxy
+ * @param target 对象
+ * @param proxyMap 全局变量，存放响应式的一个weakMap集合，在本函数中 1.用于判断当前对象是否已经存在 2.不存在的话就新建然后放入这个全局变量中
+ * @param baseHandlers Proxy处理器，即get和set 等
+ * @returns 
+ */
 function createReactiveObject(target, proxyMap, baseHandlers) {
   // 核心就是 proxy
   // 目的是可以侦听到用户 get 或者 set 的动作

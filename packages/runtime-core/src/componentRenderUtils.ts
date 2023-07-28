@@ -1,3 +1,8 @@
+/**判断组件是否需要更新 **只要是 props 发生改变了，那么这个 component 就需要更新** 
+ * @param prevVNode 旧Vnode
+ * @param nextVNode 新Vnode
+ * @returns 是否需要更新的布尔值 （只要是 props 发生改变了，那么这个 component 就需要更新）
+ */
 export function shouldUpdateComponent(prevVNode, nextVNode) {
   const { props: prevProps } = prevVNode;
   const { props: nextProps } = nextVNode;
@@ -13,7 +18,7 @@ export function shouldUpdateComponent(prevVNode, nextVNode) {
   // 如果之前没有 props，那么就需要看看现在有没有 props 了
   // 所以这里基于 nextProps 的值来决定是否更新
   if (!prevProps) {
-    return !!nextProps;
+    return !!nextProps; //双叹号，把变量转为布尔值。相当于 nextProps ? true : false
   }
   // 之前有值，现在没值，那么肯定需要更新
   if (!nextProps) {
@@ -24,11 +29,16 @@ export function shouldUpdateComponent(prevVNode, nextVNode) {
   // 在 hasPropsChanged 会做更细致的对比检测
   return hasPropsChanged(prevProps, nextProps);
 }
-
+/**进行更细致的新旧props对比，判断是否需要更新
+ * @param prevProps 旧props
+ * @param nextProps 新props
+ * @returns 是否需要更新的布尔值
+ */
 function hasPropsChanged(prevProps, nextProps): boolean {
   // 依次对比每一个 props.key
 
   // 提前对比一下 length ，length 不一致肯定是需要更新的
+  /**新props的key数组 */
   const nextKeys = Object.keys(nextProps);
   if (nextKeys.length !== Object.keys(prevProps).length) {
     return true;

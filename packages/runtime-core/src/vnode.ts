@@ -1,29 +1,27 @@
 import { ShapeFlags } from "@mini-vue/shared";
 
 export { createVNode as createElementVNode }
-
-export const createVNode = function (
-  type: any,
-  props?: any,
-  children?: string | Array<any>
-) {
-  // 注意 type 有可能是 string 也有可能是对象
-  // 如果是对象的话，那么就是用户设置的 options
-  // type 为 string 的时候
-  // createVNode("div")
-  // type 为组件对象的时候
-  // createVNode(App)
+/**
+ * 创建虚拟节点
+ * @param type 类型。  注意 type 有可能是 string 也有可能是对象。如果是对象的话，那么就是用户设置的 options。type 为 string 的时候，createVNode("div")； type 为组件对象的时候， createVNode(App)
+ * @param props props
+ * @param children children
+ * @returns 
+ */
+export const createVNode = function (type: any, props?: any, children?: string | Array<any>) {
+  /**虚拟节点 */
   const vnode = {
+    /**DOM元素 */
     el: null,
     component: null,
     key: props?.key,
     type,
     props: props || {},
     children,
-    shapeFlag: getShapeFlag(type),
+    shapeFlag: getShapeFlag(type), //基于 type 来判断是什么类型的组件
   };
 
-  // 基于 children 再次设置 shapeFlag
+  // 基于 children 再次设置 shapeFlag，下面使用了位运算？？没看懂
   if (Array.isArray(children)) {
     vnode.shapeFlag |= ShapeFlags.ARRAY_CHILDREN;
   } else if (typeof children === "string") {
@@ -34,7 +32,7 @@ export const createVNode = function (
 
   return vnode;
 };
-
+/**标准化children？？  代码中根据vnode.shapeFlag，重新设置了vnode.shapeFlag*/
 export function normalizeChildren(vnode, children) {
   if (typeof children === "object") {
     // 暂时主要是为了标识出 slots_children 这个类型来
@@ -48,9 +46,12 @@ export function normalizeChildren(vnode, children) {
     }
   }
 }
-// 用 symbol 作为唯一标识
+//用 symbol 作为唯一标识
+/**文本类型？ */
 export const Text = Symbol("Text");
+/**Fragment类型？ */
 export const Fragment = Symbol("Fragment");
+// 其中还有几个类型比如： static fragment comment
 
 /**
  * @private
@@ -59,8 +60,7 @@ export function createTextVNode(text: string = " ") {
   return createVNode(Text, {}, text);
 }
 
-// 标准化 vnode 的格式
-// 其目的是为了让 child 支持多种格式
+/**标准化 vnode 的格式，其目的是为了让 child 支持多种格式 */
 export function normalizeVNode(child) {
   // 暂时只支持处理 child 为 string 和 number 的情况
   if (typeof child === "string" || typeof child === "number") {
@@ -70,7 +70,7 @@ export function normalizeVNode(child) {
   }
 }
 
-// 基于 type 来判断是什么类型的组件
+/**基于 type 来判断是什么类型的组件 */
 function getShapeFlag(type: any) {
   return typeof type === "string"
     ? ShapeFlags.ELEMENT

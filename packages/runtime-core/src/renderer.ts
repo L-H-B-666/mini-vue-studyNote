@@ -8,7 +8,7 @@ import { shouldUpdateComponent } from "./componentRenderUtils";
 import { createAppAPI } from "./createApp";
 
 export function createRenderer(options) {
-  const {
+  const { //这部分的源码在 packages\runtime-dom\src\index.ts 中，作为对象参数传递进来
     createElement: hostCreateElement,
     setElementText: hostSetElementText,
     patchProp: hostPatchProp,
@@ -17,36 +17,38 @@ export function createRenderer(options) {
     setText: hostSetText,
     createText: hostCreateText,
   } = options;
-
+  /**render函数 
+   * @param vnode 虚拟节点
+   * @param container 容器
+   */
   const render = (vnode, container) => {
     console.log("调用 patch")
     patch(null, vnode, container);
   };
-
-  function patch(
-    n1,
-    n2,
-    container = null,
-    anchor = null,
-    parentComponent = null
-  ) {
-    // 基于 n2 的类型来判断
-    // 因为 n2 是新的 vnode
+  /**patch函数，会对比n1和n2，来判断是需要更新还是创建，操作的是Element类型还是Component类型 
+   * @param n1 旧Vnode
+   * @param n2 新Vnode
+   * @param container 容器
+   * @param anchor 插入的锚点， 如果是需要插入的话，将要插在这个节点之前
+   * @param parentComponent 父组件？
+   */
+  function patch(n1, n2, container = null, anchor = null, parentComponent = null) {
+    // 基于 n2 的类型来判断，因为 n2 是新的 vnode 
     const { type, shapeFlag } = n2;
     switch (type) {
       case Text:
         processText(n1, n2, container);
         break;
-      // 其中还有几个类型比如： static fragment comment
       case Fragment:
         processFragment(n1, n2, container);
         break;
+      // 其中还有几个类型比如： static fragment comment
       default:
-        // 这里就基于 shapeFlag 来处理
-        if (shapeFlag & ShapeFlags.ELEMENT) {
+        // 这里就基于 n2.shapeFlag 来处理
+        if (shapeFlag & ShapeFlags.ELEMENT) {//是element类型（HTML标签）
           console.log("处理 element");
           processElement(n1, n2, container, anchor, parentComponent);
-        } else if (shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {
+        } else if (shapeFlag & ShapeFlags.STATEFUL_COMPONENT) {//是组件类型
           console.log("处理 component");
           processComponent(n1, n2, container, parentComponent);
         }
@@ -82,17 +84,31 @@ export function createRenderer(options) {
       }
     }
   }
-
+  /**
+   * 处理element类型，分为初始化和更新俩种
+   * @param n1 旧vNode
+   * @param n2 新Vnode
+   * @param container 容器
+   * @param anchor 插入的锚点， 如果是需要插入的话，将要插在这个节点之前
+   * @param parentComponent 父组件 
+   */
   function processElement(n1, n2, container, anchor, parentComponent) {
-    if (!n1) {
+    if (!n1) {//没有旧节点，说明是挂载
       mountElement(n2, container, anchor);
     } else {
       // todo
       updateElement(n1, n2, container, anchor, parentComponent);
     }
   }
-
+  /**更新Element节点 
+   * @param n1 旧vNode
+   * @param n2 新Vnode
+   * @param container 容器
+   * @param anchor 插入的锚点， 如果是需要插入的话，将要插在这个节点之前
+   * @param parentComponent 父组件 
+   */
   function updateElement(n1, n2, container, anchor, parentComponent) {
+    //把props取出来
     const oldProps = (n1 && n1.props) || {};
     const newProps = n2.props || {};
     // 应该更新 element
@@ -100,7 +116,7 @@ export function createRenderer(options) {
     console.log("旧的 vnode", n1);
     console.log("新的 vnode", n2);
 
-    // 需要把 el 挂载到新的 vnode
+    // 需要把 el 挂载到新的 vnode（也就是把n1的元素挂到n2）
     const el = (n2.el = n1.el);
 
     // 对比 props
@@ -109,87 +125,102 @@ export function createRenderer(options) {
     // 对比 children
     patchChildren(n1, n2, el, anchor, parentComponent);
   }
-
+  /**对比props 。
+   * @param el DOM元素
+   * @param oldProps 旧props 
+   * @param newProps 新props
+   */
   function patchProps(el, oldProps, newProps) {
     // 对比 props 有以下几种情况
-    // 1. oldProps 有，newProps 也有，但是 val 值变更了
-    // 举个栗子
-    // 之前: oldProps.id = 1 ，更新后：newProps.id = 2
-
-    // key 存在 oldProps 里 也存在 newProps 内
-    // 以 newProps 作为基准
+    /**  
+      1. oldProps 有，newProps 也有，但是 val 值变更了
+      举个栗子
+      之前: oldProps.id = 1 ，更新后：newProps.id = 2 
+      key 存在 oldProps 里，也存在 newProps 内，所以
+      以newProps为基准
+    */
     for (const key in newProps) {
       const prevProp = oldProps[key];
       const nextProp = newProps[key];
-      if (prevProp !== nextProp) {
-        // 对比属性
+      if (prevProp !== nextProp) {//如果不同就对比属性 
         // 需要交给 host 来更新 key
         hostPatchProp(el, key, prevProp, nextProp);
       }
     }
-
-    // 2. oldProps 有，而 newProps 没有了
-    // 之前： {id:1,tId:2}  更新后： {id:1}
-    // 这种情况下我们就应该以 oldProps 作为基准，因为在 newProps 里面是没有的 tId 的
-    // 还需要注意一点，如果这个 key 在 newProps 里面已经存在了，说明已经处理过了，就不要在处理了
+    /*
+      2. oldProps 有，而 newProps 没有了
+      比如，之前： {id:1,tId:2}  更新后： {id:1}
+      这种情况下我们就应该以 oldProps 作为基准，因为在 newProps 里面是没有的 tId 的
+      还需要注意一点，如果这个 key 在 newProps 里面已经存在了，说明已经处理过了，就不要在处理了
+    */
     for (const key in oldProps) {
       const prevProp = oldProps[key];
-      const nextProp = null;
-      if (!(key in newProps)) {
-        // 这里是以 oldProps 为基准来遍历，
-        // 而且得到的值是 newProps 内没有的
-        // 所以交给 host 更新的时候，把新的值设置为 null
+      const nextProp = null; //设为null的原因在下面讲了
+      if (!(key in newProps)) {// 还需要注意一点，如果这个 key 在 newProps 里面已经存在了，说明已经处理过了，就不要在处理了
+        // 这里是以 oldProps 为基准来遍历， 而且得到的值是 newProps 内没有的，所以交给 host 更新的时候，把新的值设置为 null
         hostPatchProp(el, key, prevProp, nextProp);
       }
     }
   }
-
+  /**对比children 
+   * @param n1 旧vNode
+   * @param n2 新Vnode
+   * @param container 容器
+   * @param anchor 插入的锚点， 如果是需要插入的话，将要插在这个节点之前
+   * @param parentComponent 父组件 
+   */
   function patchChildren(n1, n2, container, anchor, parentComponent) {
+    //从中取出新旧的shapeFlag和children
     const { shapeFlag: prevShapeFlag, children: c1 } = n1;
     const { shapeFlag, children: c2 } = n2;
 
     // 如果 n2 的 children 是 text 类型的话
     // 就看看和之前的 n1 的 children 是不是一样的
-    // 如果不一样的话直接重新设置一下 text 即可
-    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
-      if (c2 !== c1) {
+    // 如果不一样的话直接重新设置一下 text 即可  （一样的说明不用改）
+    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {//如果新的类型是文本类型
+      if (c2 !== c1) {// 如果不一样的话直接重新设置一下 text 即可
         console.log("类型为 text_children, 当前需要更新");
         hostSetElementText(container, c2 as string);
       }
-    } else {
-      // 看看之前的是不是 text
+    } else {//如果新的vNode不是文本类型
+      // 看看之前旧的Vnode是不是 text
       if (prevShapeFlag & ShapeFlags.TEXT_CHILDREN) {
-        // 先清空
-        // 然后在把新的 children 给 mount 生成 element
-        hostSetElementText(container, "");
+        // 是的话，先清空，然后在把新的 children 给 mount 生成 element
+        hostSetElementText(container, "");//设置元素的text为空
         mountChildren(c2, container);
-      } else {
+      } else { // 如果之前的Vnode不是text类型
         // array diff array
-      // 如果之前是 array_children
-      // 现在还是 array_children 的话
-      // 那么我们就需要对比两个 children 啦
+        // 如果之前是 array_children
+        // 现在还是 array_children 的话
+        // 那么我们就需要对比两个 children 啦
         patchKeyedChildren(c1, c2, container, parentComponent, anchor);
       }
 
     }
   }
-
-  function patchKeyedChildren(
-    c1: any[],
-    c2: any[],
-    container,
-    parentAnchor,
-    parentComponent
-  ) {
+  /**对比两个 children  。diff算法就在这里？
+   * @param c1 旧children数组
+   * @param c2 新children数组
+   * @param container 容器DOM元素
+   * @param parentAnchor 父组件的插入的锚点， 如果是需要插入的话，将要插在这个节点之前
+   * @param parentComponent 父组件？？
+   */
+  function patchKeyedChildren(c1: any[], c2: any[], container, parentAnchor, parentComponent) {
+    /**主索引 */
     let i = 0;
+    /**新children数组的长度 */
     const l2 = c2.length;
+    /**旧children数组的可变索引 */
     let e1 = c1.length - 1;
+    /**新children数组的可变索引 */
     let e2 = l2 - 1;
-
+    /**判断两个VNode的类型和key是否相等 */
     const isSameVNodeType = (n1, n2) => {
       return n1.type === n2.type && n1.key === n2.key;
     };
 
+    //#region 这两个循环的作用就是为了把变化的数组范围缩到最小 （双端diff）   [a,b,c,d] --> [a,b,e,d] ，免得变化中间一个，后面的没变却要重新渲染
+    // i 从左到右，判断 c1[i] 和 c2[i] 是否相等，遇到不相等就跳出。当前的相等，就对比这两个 child 节点，进行patch 
     while (i <= e1 && i <= e2) {
       const prevChild = c1[i];
       const nextChild = c2[i];
@@ -205,7 +236,9 @@ export function createRenderer(options) {
       patch(prevChild, nextChild, container, parentAnchor, parentComponent);
       i++;
     }
-
+    //这时候的i已经到了两个children数组不相同的地方了。 比如[a,b,c,d] 和 [a,b,e,c,d]，经过上面那个while循环，当前i已经是2 了
+    //此时的i不再开始变化，而是 e1 和 e2 从右往左进行对比 （从后往前判断，看看是否屁股后也有相同的元素，免得插入了中间一个，后面的没变却要重新渲染）
+    //遇到不相等就跳出。当前的相等，就对比这两个 child 节点，进行patch 
     while (i <= e1 && i <= e2) {
       // 从右向左取值
       const prevChild = c1[e1];
@@ -222,9 +255,16 @@ export function createRenderer(options) {
       e1--;
       e2--;
     }
+    //#endregion
 
+
+    //此时i是新旧数组的不相同的地方的最左边，e1、e2分别是新旧数组不相等的最右边索引
+    //若 i > e1 && i <= e2：比如插入一/多个数据, [a,b,c,d] --> [a,b,e,c,d]，这时的i是2，e1是1，e2是3
+    //若 i <= e1 && i > e2：比如减少一/多个数据, [a,b,c,d] --> [a,b,d]，这时的i是2，e1是2，e2是1
+    //else ： 就是数组个数没变，但是顺序变了 [a,b,  c,d,e  ,f,g] --> [a,b,  e,c,d  ,f,g]，这时的i是2，e1是4，e2是4
+    //        或者数组中某个值变了 [a,b,c,d] --> [a,b,e,d]，这时的i是2，e1是2，e2是2
     if (i > e1 && i <= e2) {
-      // 如果是这种情况的话就说明 e2 也就是新节点的数量大于旧节点的数量
+      // 如果是这种情况的话就说明, 新节点的数量大于旧节点的数量
       // 也就是说新增了 vnode
       // 应该循环 c2
       // 锚点的计算：新的节点有可能需要添加到尾部，也可能添加到头部，所以需要指定添加的问题
@@ -247,15 +287,14 @@ export function createRenderer(options) {
         i++;
       }
     } else {
-      // 左右两边都比对完了，然后剩下的就是中间部位顺序变动的
-      // 例如下面的情况
-      // a,b,[c,d,e],f,g
-      // a,b,[e,c,d],f,g
-
+      // 左右两边都比对完了，然后剩下的就是中间部位顺序变动的    或者某个元素变化的   
       let s1 = i;
       let s2 = i;
+      /**根据key查找index的Map */
       const keyToNewIndexMap = new Map();
+      /**节点是否移动过了的标识符 */
       let moved = false;
+      /**当前最大的新索引，用于判断索引是否为升序 */
       let maxNewIndexSoFar = 0;
       // 先把 key 和 newIndex 绑定好，方便后续基于 key 找到 newIndex
       // 时间复杂度是 O(1)
@@ -264,11 +303,13 @@ export function createRenderer(options) {
         keyToNewIndexMap.set(nextChild.key, i);
       }
 
-      // 需要处理新节点的数量
+      /**需要处理新节点的数量 */
       const toBePatched = e2 - s2 + 1;
+      /**老节点被patch的数量 */
       let patched = 0;
       // 初始化 从新的index映射为老的index
       // 创建数组的时候给定数组的长度，这个是性能最快的写法
+      /**新索引与旧索引的映射关系 */
       const newIndexToOldIndexMap = new Array(toBePatched);
       // 初始化为 0 , 后面处理的时候 如果发现是 0 的话，那么就说明新值在老的里面不存在
       for (let i = 0; i < toBePatched; i++) newIndexToOldIndexMap[i] = 0;
@@ -277,15 +318,15 @@ export function createRenderer(options) {
       // 1. 需要找出老节点有，而新节点没有的 -> 需要把这个节点删除掉
       // 2. 新老节点都有的，—> 需要 patch
       for (i = s1; i <= e1; i++) {
+        /**老节点的第i孩子 c1[i] */
         const prevChild = c1[i];
-
         // 优化点
-        // 如果老的节点大于新节点的数量的话，那么这里在处理老节点的时候就直接删除即可
+        // 如果已经被patch的老的节点数量，大于新节点的数量的话，那么这里在处理其它更多老节点的时候就直接删除即可
         if (patched >= toBePatched) {
           hostRemove(prevChild.el);
           continue;
         }
-
+        /**新索引 */
         let newIndex;
         if (prevChild.key != null) {
           // 这里就可以通过key快速的查找了， 看看在新的里面这个节点存在不存在
@@ -301,9 +342,7 @@ export function createRenderer(options) {
             }
           }
         }
-
-        // 因为有可能 nextIndex 的值为0（0也是正常值）
-        // 所以需要通过值是不是 undefined 或者 null 来判断
+        // 因为有可能 nextIndex 的值为0（0也是正常值），所以需要通过值是不是 undefined 或者 null 来判断  （不能用 !newIndex 判断）
         if (newIndex === undefined) {
           // 当前节点的key 不存在于 newChildren 中，需要把当前节点给删除掉
           hostRemove(prevChild.el);
@@ -335,9 +374,8 @@ export function createRenderer(options) {
       // 通过 moved 来进行优化，如果没有移动过的话 那么就不需要执行算法
       // getSequence 返回的是 newIndexToOldIndexMap 的索引值
       // 所以后面我们可以直接遍历索引值来处理，也就是直接使用 toBePatched 即可
-      const increasingNewIndexSequence = moved
-        ? getSequence(newIndexToOldIndexMap)
-        : [];
+      /** 有节点需要移动，生成长期稳定的子序列，仅对移动过的节点处理 */
+      const increasingNewIndexSequence = moved ? getSequence(newIndexToOldIndexMap) : [];
       let j = increasingNewIndexSequence.length - 1;
 
       // 遍历新节点
@@ -347,11 +385,13 @@ export function createRenderer(options) {
       // 这里倒循环是因为在 insert 的时候，需要保证锚点是处理完的节点（也就是已经确定位置了）
       // 因为 insert 逻辑是使用的 insertBefore()
       for (let i = toBePatched - 1; i >= 0; i--) {
-        // 确定当前要处理的节点索引
+        /**确定当前要处理的节点索引 */
         const nextIndex = s2 + i;
+        /**根据当前要处理的索引，拿到新孩子数组中指定的孩子 */
         const nextChild = c2[nextIndex];
         // 锚点等于当前节点索引+1
         // 也就是当前节点的后面一个节点(又因为是倒遍历，所以锚点是位置确定的节点)
+        /**要插入的锚点 */
         const anchor = nextIndex + 1 < l2 ? c2[nextIndex + 1].el : parentAnchor;
 
         if (newIndexToOldIndexMap[i] === 0) {
@@ -374,15 +414,20 @@ export function createRenderer(options) {
       }
     }
   }
-
+  /**初始化element 
+   * @param vnode vnode
+   * @param container 容器
+   * @param anchor 插入的锚点， 如果是需要插入的话，将要插在这个节点之前
+   */
   function mountElement(vnode, container, anchor) {
     const { shapeFlag, props } = vnode;
     // 1. 先创建 element
-    // 基于可扩展的渲染 api
+    // 基于可扩展的渲染 api，hostCreateElement是支持用户自定义的？
+    /**创建的DOM元素 */
     const el = (vnode.el = hostCreateElement(vnode.type));
 
     // 支持单子组件和多子组件的创建
-    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {
+    if (shapeFlag & ShapeFlags.TEXT_CHILDREN) {//这里 children 就是 test ，只需要渲染一下就完事了
       // 举个栗子
       // render(){
       //     return h("div",{},"test")
@@ -390,7 +435,7 @@ export function createRenderer(options) {
       // 这里 children 就是 test ，只需要渲染一下就完事了
       console.log(`处理文本:${vnode.children}`);
       hostSetElementText(el, vnode.children);
-    } else if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+    } else if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) { //这里 children 就是个数组了，就需要依次调用 patch 递归来处理
       // 举个栗子
       // render(){
       // Hello 是个 component
@@ -426,7 +471,10 @@ export function createRenderer(options) {
     console.log("DirectiveHook  -> mounted");
     console.log("transition  -> enter");
   }
-
+  /**挂载children，在这里遍历children数组，每个调用一次patch 
+   * @param children children数组
+   * @param container 容器DOM元素
+   */
   function mountChildren(children, container) {
     children.forEach((VNodeChild) => {
       // todo
@@ -436,7 +484,7 @@ export function createRenderer(options) {
       patch(null, VNodeChild, container);
     });
   }
-
+  /**处理组件类型，分为初始化和更新俩种 */
   function processComponent(n1, n2, container, parentComponent) {
     // 如果 n1 没有值的话，那么就是 mount
     if (!n1) {
@@ -447,23 +495,26 @@ export function createRenderer(options) {
     }
   }
 
-  // 组件的更新
+  /**组件的更新 
+   * @param n1 旧vnode
+   * @param n2 新vnode
+   * @param container 容器DOM
+   */
   function updateComponent(n1, n2, container) {
     console.log("更新组件", n1, n2);
-    // 更新组件实例引用
-    const instance = (n2.component = n1.component);
+    /**更新后的组件实例*/
+    const instance = (n2.component = n1.component);//同时，n2的 component 被n1的component赋值
     // 先看看这个组件是否应该更新
     if (shouldUpdateComponent(n1, n2)) {
       console.log(`组件需要更新: ${instance}`);
       // 那么 next 就是新的 vnode 了（也就是 n2）
       instance.next = n2;
-      // 这里的 update 是在 setupRenderEffect 里面初始化的，update 函数除了当内部的响应式对象发生改变的时候会调用
-      // 还可以直接主动的调用(这是属于 effect 的特性)
-      // 调用 update 再次更新调用 patch 逻辑
-      // 在update 中调用的 next 就变成了 n2了
+      // 这里的 update 是在 setupRenderEffect 里面初始化的
+      // update 函数除了当内部的响应式对象发生改变的时候会调用，还可以直接主动的调用(这是属于 effect 的特性)
+      // 调用 update 再次更新调用 patch 逻辑， 在update 中调用的 next 就变成了 n2了
       // ps：可以详细的看看 update 中 next 的应用
       // TODO 需要在 update 中处理支持 next 的逻辑
-      instance.update();
+      instance.update();//需要的话就手动调用之前的effect依赖
     } else {
       console.log(`组件不需要更新: ${instance}`);
       // 不需要更新的话，那么只需要覆盖下面的属性即可
@@ -472,20 +523,25 @@ export function createRenderer(options) {
       instance.vnode = n2;
     }
   }
-
+  /**初始化组件 
+   * @param initialVNode Vnode
+   * @param container 容器
+   * @param parentComponent 父组件？ 
+   */
   function mountComponent(initialVNode, container, parentComponent) {
-    // 1. 先创建一个 component instance
-    const instance = (initialVNode.component = createComponentInstance(
-      initialVNode,
-      parentComponent
-    ));
+    /** 1. 先创建一个组件实例 */ //这里同时还给 initialVNode的component赋值了
+    const instance = (initialVNode.component = createComponentInstance(initialVNode, parentComponent));
     console.log(`创建组件实例:${instance.type.name}`);
-    // 2. 给 instance 加工加工
+    // 2. 给 实例 加工加工，在里面把proxy，slot等挂上，然后给setup函数传参调用。
     setupComponent(instance);
-
+    // 3. setupRenderEffect：在里面调用render、收集触发依赖、触发生命周期、递归调用patch
     setupRenderEffect(instance, initialVNode, container);
   }
-
+  /**setupRenderEffect：在里面调用render、收集触发依赖、触发生命周期、递归调用patch 
+   * @param instance 当前组件实例
+   * @param initialVNode 初始化的VNode
+   * @param container 容器DOM
+   */
   function setupRenderEffect(instance, initialVNode, container) {
     // 调用 render
     // 应该传入 ctx 也就是 proxy
@@ -508,9 +564,7 @@ export function createRenderer(options) {
         console.log(`${instance.type.name}:调用 render,获取 subTree`);
         const proxyToUse = instance.proxy;
         // 可在 render 函数中通过 this 来使用 proxy
-        const subTree = (instance.subTree = normalizeVNode(
-          instance.render.call(proxyToUse, proxyToUse)
-        ));
+        const subTree = (instance.subTree = normalizeVNode(instance.render.call(proxyToUse, proxyToUse)));
         console.log("subTree", subTree);
 
         // todo
@@ -575,7 +629,7 @@ export function createRenderer(options) {
     // 因为 ReactiveEffect 是内部对象，加一个参数是无所谓的
     // 后面如果要实现 scope 的逻辑的时候 需要改过来
     // 现在就先算了
-    instance.update = effect(componentUpdateFn, {
+    instance.update = effect(componentUpdateFn, { //在这里收集依赖，会把 componentUpdateFn 函数作为依赖，后面更新时执行，达成响应式
       scheduler: () => {
         // 把 effect 推到微任务的时候在执行
         // queueJob(effect);
@@ -608,7 +662,7 @@ export function createRenderer(options) {
     createApp: createAppAPI(render),
   };
 }
-
+/**获得最长递增子序列。没看懂算法 */
 function getSequence(arr: number[]): number[] {
   const p = arr.slice();
   const result = [0];

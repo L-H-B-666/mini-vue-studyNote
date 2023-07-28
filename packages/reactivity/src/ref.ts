@@ -65,7 +65,7 @@ export function trackRefValue(ref) {
 // 比如在 template 中使用 ref 的时候，直接使用就可以了
 // 例如： const count = ref(0) -> 在 template 中使用的话 可以直接 count
 // 解决方案就是通过 proxy 来对 ref 做处理
-
+/**帮助解构ref的函数， 比如在 template 中使用 ref 的时候，直接使用就可以了，不用.value */
 const shallowUnwrapHandlers = {
   get(target, key, receiver) {
     // 如果里面是一个 ref 类型的话，那么就返回 .value
@@ -74,9 +74,9 @@ const shallowUnwrapHandlers = {
   },
   set(target, key, value, receiver) {
     const oldValue = target[key];
-    if (isRef(oldValue) && !isRef(value)) {
+    if (isRef(oldValue) && !isRef(value)) {//是ref就是给.value设置值
       return (target[key].value = value);
-    } else {
+    } else {//不是ref就正常设置
       return Reflect.set(target, key, value, receiver);
     }
   },
@@ -85,15 +85,16 @@ const shallowUnwrapHandlers = {
 // 这里没有处理 objectWithRefs 是 reactive 类型的时候
 // TODO reactive 里面如果有 ref 类型的 key 的话， 那么也是不需要调用 ref.value 的
 // （but 这个逻辑在 reactive 里面没有实现）
+/**代理ref对象，实现在template中直接使用ref，无需.value */
 export function proxyRefs(objectWithRefs) {
   return new Proxy(objectWithRefs, shallowUnwrapHandlers);
 }
 
-// 把 ref 里面的值拿到
+/** 把 ref 里面的值拿到 */
 export function unRef(ref) {
   return isRef(ref) ? ref.value : ref;
 }
-
+/**判断是否为ref数据 （有个__v_isRef标识符） */
 export function isRef(value) {
   return !!value.__v_isRef;
 }

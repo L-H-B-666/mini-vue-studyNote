@@ -1,3 +1,4 @@
+/**初始化props。这里没有管attrs，暂时直接把 rawProps 赋值给了 instance，实际上会有更多操作，所以才会封装成函数*/
 export function initProps(instance, rawProps) {
   console.log("initProps");
 

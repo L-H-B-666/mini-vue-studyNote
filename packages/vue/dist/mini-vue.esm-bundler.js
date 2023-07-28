@@ -329,15 +329,16 @@ const shallowReadonlyHandlers = {
     },
 };
 
-const reactiveMap = new WeakMap();
-const readonlyMap = new WeakMap();
-const shallowReadonlyMap = new WeakMap();
 var ReactiveFlags;
 (function (ReactiveFlags) {
+    ReactiveFlags["SKIP"] = "__v_skip";
     ReactiveFlags["IS_REACTIVE"] = "__v_isReactive";
     ReactiveFlags["IS_READONLY"] = "__v_isReadonly";
     ReactiveFlags["RAW"] = "__v_raw";
 })(ReactiveFlags || (ReactiveFlags = {}));
+const reactiveMap = new WeakMap();
+const readonlyMap = new WeakMap();
+const shallowReadonlyMap = new WeakMap();
 function reactive(target) {
     return createReactiveObject(target, reactiveMap, mutableHandlers);
 }

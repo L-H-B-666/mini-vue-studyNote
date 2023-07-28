@@ -10,6 +10,7 @@ const publicPropertiesMap = {
 };
 
 // todo 需要让用户可以直接在 render 函数内直接使用 this 来触发 proxy
+/**组件实例的proxy的处理器 */
 export const PublicInstanceProxyHandlers = {
   get({ _: instance }, key) {
     // 用户访问 proxy[key]

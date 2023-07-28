@@ -7,12 +7,16 @@ import {
   readonly,
   readonlyMap,
   shallowReadonlyMap,
+  Target,
 } from "./reactive";
 import { isObject } from "@mini-vue/shared";
-
+/**get函数 */
 const get = createGetter();
+/**set函数 */
 const set = createSetter();
+/**只读的get */
 const readonlyGet = createGetter(true);
+/**非递归监听的get */
 const shallowReadonlyGet = createGetter(true, true);
 
 /**创建一个getter 
@@ -27,7 +31,7 @@ function createGetter(isReadonly = false, shallow = false) {
     * @param receiver 如果target对象中指定了getter，receiver则为getter调用时的this值 
     * @returns target.key 的值
    */
-  return function get(target, key, receiver) {
+  return function get(target: Target, key: string | symbol, receiver: object) {
 
     //#region TODO: 暂时跳过
     const isExistInReactiveMap = () =>
@@ -57,15 +61,15 @@ function createGetter(isReadonly = false, shallow = false) {
 
     // 问题：为什么是 readonly 的时候不做依赖收集呢
     // readonly 的话，是不可以被 set 的， 那不可以被 set 就意味着不会触发 trigger
-    // 所有就没有收集依赖的必要了
+    // 所有就没有收集依赖的必要了 
 
-    if (!isReadonly) {
+    if (!isReadonly) {//不是只读属性的话就收集
       // 在触发 get 的时候进行依赖收集
       track(target, "get", key);
     }
 
     if (shallow) {
-      return res;
+      return res;//非递归监听，就是不递归子属性（下面就在递归）
     }
 
     if (isObject(res)) { //递归调用，把全部对象都变成reactive
@@ -87,7 +91,7 @@ function createSetter() {
     * @param receiver 如果遇到 setter，receiver则为setter调用时的this值。
     * @returns 返回一个 Boolean 值表明是否成功设置属性。
    */
-  return function set(target, key, value, receiver) {
+  return function set(target: object, key: string | symbol, value: unknown, receiver: object) {
     /**通过反射进行设置键值，拿到返回结果：返回一个 Boolean 值表明是否成功设置属性。 */
     const result = Reflect.set(target, key, value, receiver);
 
@@ -97,7 +101,7 @@ function createSetter() {
     return result;
   };
 }
-
+/**只读的Proxy处理器 */
 export const readonlyHandlers = {
   get: readonlyGet,
   set(target, key) {
@@ -109,12 +113,12 @@ export const readonlyHandlers = {
     return true;
   },
 };
-
+/**普通的Proxy处理器，只有Getter和Setter */
 export const mutableHandlers = {
   get,
   set,
 };
-
+/**非递归监听（即不监听内部属性）的处理器 */
 export const shallowReadonlyHandlers = {
   get: shallowReadonlyGet,
   set(target, key) {
